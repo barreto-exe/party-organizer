@@ -1,91 +1,160 @@
 import { useState, useEffect } from 'react'
+import { ref, onValue, push, set, update } from "firebase/database";
+import { database } from './firebase';
 import './App.css'
 import GuestList from './components/GuestList'
 import GroupManager from './components/GroupManager'
 import Dashboard from './components/Dashboard'
+import PartyWelcome from './components/PartyWelcome'
 
 function App() {
-  const [guests, setGuests] = useState(() => {
-    const saved = localStorage.getItem('partyGuests');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
-  const [groups, setGroups] = useState(() => {
-    const saved = localStorage.getItem('partyGroups');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [view, setView] = useState('dashboard') // 'guests', 'groups', 'dashboard'
+  const [partyId, setPartyId] = useState(() => localStorage.getItem('currentPartyId') || null);
+  const [guests, setGuests] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [view, setView] = useState('dashboard');
 
   useEffect(() => {
-    localStorage.setItem('partyGuests', JSON.stringify(guests));
-  }, [guests]);
+    if (!partyId) {
+      // Reset state when no party is selected
+      // We can skip this if we ensure partyId is null on mount
+      return;
+    }
 
-  useEffect(() => {
-    localStorage.setItem('partyGroups', JSON.stringify(groups));
-  }, [groups]);
+    localStorage.setItem('currentPartyId', partyId);
+
+    const guestsRef = ref(database, `parties/${partyId}/guests`);
+    const groupsRef = ref(database, `parties/${partyId}/groups`);
+
+    const unsubscribeGuests = onValue(guestsRef, (snapshot) => {
+      const data = snapshot.val();
+      const loadedGuests = data ? Object.entries(data).map(([id, val]) => ({ id, ...val })) : [];
+      setGuests(loadedGuests);
+    });
+
+    const unsubscribeGroups = onValue(groupsRef, (snapshot) => {
+      const data = snapshot.val();
+      const loadedGroups = data ? Object.entries(data).map(([id, val]) => ({ 
+        id, 
+        ...val,
+        memberIds: val.memberIds || [] 
+      })) : [];
+      setGroups(loadedGroups);
+    });
+
+    return () => {
+      unsubscribeGuests();
+      unsubscribeGroups();
+    };
+  }, [partyId]);
+
+  const generatePartyCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const handleCreateParty = () => {
+    const newCode = generatePartyCode();
+    setPartyId(newCode);
+  };
+
+  const handleJoinParty = (code) => {
+    setPartyId(code);
+  };
+
+  const handleLeaveParty = () => {
+    setPartyId(null);
+    localStorage.removeItem('currentPartyId');
+  };
 
   const addGuest = (name) => {
-    const newGuest = {
-      id: crypto.randomUUID(),
+    if (!partyId) return;
+    const guestsRef = ref(database, `parties/${partyId}/guests`);
+    const newGuestRef = push(guestsRef);
+    set(newGuestRef, {
       name,
       arrived: false
-    }
-    setGuests([...guests, newGuest])
+    });
   }
 
   const addGuests = (names) => {
-    const newGuests = names.map(name => ({
-      id: crypto.randomUUID(),
-      name,
-      arrived: false
-    }));
-    setGuests([...guests, ...newGuests]);
+    if (!partyId) return;
+    const guestsRef = ref(database, `parties/${partyId}/guests`);
+    const updates = {};
+    names.forEach(name => {
+      const newGuestKey = push(guestsRef).key;
+      updates[newGuestKey] = { name, arrived: false };
+    });
+    update(guestsRef, updates);
   }
 
   const addGroup = (name, initialMemberIds = []) => {
-    const newGroup = {
-      id: crypto.randomUUID(),
+    if (!partyId) return;
+    const groupsRef = ref(database, `parties/${partyId}/groups`);
+    const newGroupRef = push(groupsRef);
+    set(newGroupRef, {
       name,
       memberIds: initialMemberIds,
       photoTaken: false
-    }
-    setGroups([...groups, newGroup])
+    });
   }
 
   const addGuestToGroup = (groupId, guestId) => {
-    setGroups(groups.map(group => {
-      if (group.id === groupId) {
-        if (group.memberIds.includes(guestId)) return group;
-        return { ...group, memberIds: [...group.memberIds, guestId] }
-      }
-      return group
-    }))
+    if (!partyId) return;
+    const group = groups.find(g => g.id === groupId);
+    if (group && !group.memberIds.includes(guestId)) {
+      const groupRef = ref(database, `parties/${partyId}/groups/${groupId}`);
+      update(groupRef, {
+        memberIds: [...group.memberIds, guestId]
+      });
+    }
   }
 
   const toggleGuestArrival = (guestId) => {
-    setGuests(guests.map(guest => {
-      if (guest.id === guestId) {
-        return { ...guest, arrived: !guest.arrived }
-      }
-      return guest
-    }))
+    if (!partyId) return;
+    const guest = guests.find(g => g.id === guestId);
+    if (guest) {
+      const guestRef = ref(database, `parties/${partyId}/guests/${guestId}`);
+      update(guestRef, {
+        arrived: !guest.arrived
+      });
+    }
   }
 
   const toggleGroupPhoto = (groupId) => {
-    setGroups(groups.map(group => {
-      if (group.id === groupId) {
-        return { ...group, photoTaken: !group.photoTaken }
-      }
-      return group
-    }))
+    if (!partyId) return;
+    const group = groups.find(g => g.id === groupId);
+    if (group) {
+      const groupRef = ref(database, `parties/${partyId}/groups/${groupId}`);
+      update(groupRef, {
+        photoTaken: !group.photoTaken
+      });
+    }
+  }
+
+  if (!partyId) {
+    return (
+      <div className="min-vh-100 d-flex flex-column bg-light">
+        <div className="container py-4 flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+          <h1 className="text-center mb-4 display-5 fw-bold text-primary">Organizador de Fotos</h1>
+          <PartyWelcome onJoinParty={handleJoinParty} onCreateParty={handleCreateParty} />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-vh-100 d-flex flex-column bg-light">
       <div className="container-lg py-4 flex-grow-1 d-flex flex-column align-items-center">
         <div className="w-100" style={{ maxWidth: '1200px' }}>
-        <h1 className="text-center mb-4 display-5 fw-bold text-primary">Organizador de Fotos</h1>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h1 className="display-6 fw-bold text-primary m-0">Fiesta: {partyId}</h1>
+          <button onClick={handleLeaveParty} className="btn btn-outline-danger btn-sm">Salir</button>
+        </div>
+        
         <nav className="d-flex justify-content-center mb-4 gap-2 flex-wrap">
           <button className={`btn ${view === 'guests' ? 'btn-primary' : 'btn-outline-primary'} px-4`} onClick={() => setView('guests')}>
             <i className="bi bi-people-fill me-2"></i>Invitados
