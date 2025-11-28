@@ -1,0 +1,25 @@
+/* Desktop spacing tweaks */
+@media (min-width: 992px) {
+  .card .card-body {
+    padding: 1.25rem 1.5rem;
+  }
+  .card .card-header {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Improve scroll areas */
+.scroll-area {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+/* Custom styles to complement Bootstrap */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Ensure checkboxes are visible and easy to click */
+input[type="checkbox"] {
+  cursor: pointer;
+}
+
