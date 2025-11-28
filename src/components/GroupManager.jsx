@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
 
-function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
+function GroupManager({ 
+  groups, 
+  guests, 
+  addGroup, 
+  deleteGroup, 
+  updateGroupName, 
+  addGuestsToGroup, 
+  removeGuestFromGroup 
+}) {
   const [groupName, setGroupName] = useState('');
-  const [selectedGuest, setSelectedGuest] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('');
   
   // New state for creating group with selected guests
   const [newGroupWithMembersName, setNewGroupWithMembersName] = useState('');
   const [selectedGuestIdsForNewGroup, setSelectedGuestIdsForNewGroup] = useState([]);
+
+  // State for batch adding to existing group
+  const [selectedGroupForBatch, setSelectedGroupForBatch] = useState('');
+  const [selectedGuestIdsForBatch, setSelectedGuestIdsForBatch] = useState([]);
+
+  // State for editing group name
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editGroupName, setEditGroupName] = useState('');
 
   const handleAddGroup = (e) => {
     e.preventDefault();
@@ -16,14 +30,8 @@ function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
     setGroupName('');
   };
 
-  const handleAddGuestToGroup = () => {
-    if (selectedGroup && selectedGuest) {
-      addGuestToGroup(selectedGroup, selectedGuest);
-    }
-  };
-
-  const toggleGuestSelection = (guestId) => {
-    setSelectedGuestIdsForNewGroup(prev => 
+  const toggleGuestSelection = (guestId, setter) => {
+    setter(prev => 
       prev.includes(guestId) 
         ? prev.filter(id => id !== guestId)
         : [...prev, guestId]
@@ -36,6 +44,27 @@ function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
     addGroup(newGroupWithMembersName, selectedGuestIdsForNewGroup);
     setNewGroupWithMembersName('');
     setSelectedGuestIdsForNewGroup([]);
+  };
+
+  const handleBatchAddToGroup = (e) => {
+    e.preventDefault();
+    if (!selectedGroupForBatch || selectedGuestIdsForBatch.length === 0) return;
+    addGuestsToGroup(selectedGroupForBatch, selectedGuestIdsForBatch);
+    setSelectedGroupForBatch('');
+    setSelectedGuestIdsForBatch([]);
+  };
+
+  const startEditingGroup = (group) => {
+    setEditingGroupId(group.id);
+    setEditGroupName(group.name);
+  };
+
+  const saveGroupEdit = () => {
+    if (editGroupName.trim()) {
+      updateGroupName(editingGroupId, editGroupName);
+    }
+    setEditingGroupId(null);
+    setEditGroupName('');
   };
 
   return (
@@ -63,22 +92,44 @@ function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
             </div>
           </div>
 
-          {/* Assign Single Guest */}
+          {/* Batch Add to Existing Group */}
           <div className="col-md-6 mb-4">
             <div className="card h-100">
-              <div className="card-header">Asignar Invitado a Grupo</div>
+              <div className="card-header">Agregar Miembros a Grupo Existente</div>
               <div className="card-body">
-                <div className="d-flex flex-column gap-2">
-                  <select className="form-select" onChange={(e) => setSelectedGroup(e.target.value)} value={selectedGroup}>
+                <div className="mb-2">
+                  <select 
+                    className="form-select mb-2" 
+                    value={selectedGroupForBatch} 
+                    onChange={(e) => setSelectedGroupForBatch(e.target.value)}
+                  >
                     <option value="">Seleccionar Grupo</option>
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
-                  <select className="form-select" onChange={(e) => setSelectedGuest(e.target.value)} value={selectedGuest}>
-                    <option value="">Seleccionar Invitado</option>
-                    {guests.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                  <button className="btn btn-secondary" onClick={handleAddGuestToGroup}>Asignar</button>
                 </div>
+                <div className="mb-2" style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #dee2e6', padding: '5px', borderRadius: '4px' }}>
+                  {guests.map(guest => (
+                    <div key={`batch-${guest.id}`} className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id={`check-batch-${guest.id}`}
+                        checked={selectedGuestIdsForBatch.includes(guest.id)}
+                        onChange={() => toggleGuestSelection(guest.id, setSelectedGuestIdsForBatch)}
+                      />
+                      <label className="form-check-label" htmlFor={`check-batch-${guest.id}`}>
+                        {guest.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  className="btn btn-secondary w-100" 
+                  onClick={handleBatchAddToGroup}
+                  disabled={!selectedGroupForBatch || selectedGuestIdsForBatch.length === 0}
+                >
+                  Agregar Seleccionados
+                </button>
               </div>
             </div>
           </div>
@@ -87,21 +138,20 @@ function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
         {/* Create Group from Selection */}
         <div className="card mb-4">
           <div className="card-header bg-light">
-            <strong>Crear Grupo desde Selección</strong>
+            <strong>Crear Nuevo Grupo desde Selección</strong>
           </div>
           <div className="card-body">
-            <p className="text-muted">Selecciona los invitados y crea un grupo con ellos.</p>
             <div className="mb-3" style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #dee2e6', padding: '10px', borderRadius: '4px' }}>
               {guests.map(guest => (
-                <div key={guest.id} className="form-check">
+                <div key={`new-${guest.id}`} className="form-check">
                   <input
                     className="form-check-input"
                     type="checkbox"
-                    id={`check-${guest.id}`}
+                    id={`check-new-${guest.id}`}
                     checked={selectedGuestIdsForNewGroup.includes(guest.id)}
-                    onChange={() => toggleGuestSelection(guest.id)}
+                    onChange={() => toggleGuestSelection(guest.id, setSelectedGuestIdsForNewGroup)}
                   />
-                  <label className="form-check-label" htmlFor={`check-${guest.id}`}>
+                  <label className="form-check-label" htmlFor={`check-new-${guest.id}`}>
                     {guest.name}
                   </label>
                 </div>
@@ -120,7 +170,7 @@ function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
                 className="btn btn-success" 
                 disabled={selectedGuestIdsForNewGroup.length === 0 || !newGroupWithMembersName.trim()}
               >
-                Crear Grupo con {selectedGuestIdsForNewGroup.length} Invitados
+                Crear Grupo
               </button>
             </form>
           </div>
@@ -131,11 +181,47 @@ function GroupManager({ groups, guests, addGroup, addGuestToGroup }) {
           {groups.map(group => (
             <div key={group.id} className="col-md-4 mb-3">
               <div className="card h-100">
-                <div className="card-header fw-bold">{group.name}</div>
+                <div className="card-header d-flex justify-content-between align-items-center">
+                  {editingGroupId === group.id ? (
+                    <div className="d-flex gap-1 w-100">
+                      <input 
+                        type="text" 
+                        className="form-control form-control-sm" 
+                        value={editGroupName} 
+                        onChange={(e) => setEditGroupName(e.target.value)}
+                      />
+                      <button className="btn btn-sm btn-success" onClick={saveGroupEdit}><i className="bi bi-check"></i></button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setEditingGroupId(null)}><i className="bi bi-x"></i></button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="fw-bold text-truncate" title={group.name}>{group.name}</span>
+                      <div className="btn-group">
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => startEditingGroup(group)}>
+                          <i className="bi bi-pencil"></i>
+                        </button>
+                        <button className="btn btn-sm btn-outline-danger" onClick={() => { if(window.confirm('¿Eliminar grupo?')) deleteGroup(group.id) }}>
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
                 <ul className="list-group list-group-flush">
                   {group.memberIds.map(memberId => {
                     const member = guests.find(g => g.id === memberId);
-                    return <li key={memberId} className="list-group-item">{member ? member.name : 'Unknown'}</li>
+                    return (
+                      <li key={memberId} className="list-group-item d-flex justify-content-between align-items-center p-2">
+                        <span className="text-truncate">{member ? member.name : 'Unknown'}</span>
+                        <button 
+                          className="btn btn-sm btn-link text-danger p-0" 
+                          title="Remover del grupo"
+                          onClick={() => removeGuestFromGroup(group.id, memberId)}
+                        >
+                          <i className="bi bi-x-circle"></i>
+                        </button>
+                      </li>
+                    );
                   })}
                   {group.memberIds.length === 0 && <li className="list-group-item text-muted fst-italic">Sin miembros</li>}
                 </ul>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ref, onValue, push, set, update } from "firebase/database";
+import { ref, onValue, push, set, update, remove } from "firebase/database";
 import { database } from './firebase';
 import './App.css'
 import GuestList from './components/GuestList'
@@ -102,7 +102,7 @@ function App() {
     });
   }
 
-  const addGuestToGroup = (groupId, guestId) => {
+    const addGuestToGroup = (groupId, guestId) => {
     if (!partyId) return;
     const group = groups.find(g => g.id === groupId);
     if (group && !group.memberIds.includes(guestId)) {
@@ -111,6 +111,58 @@ function App() {
         memberIds: [...group.memberIds, guestId]
       });
     }
+  }
+
+  const addGuestsToGroup = (groupId, guestIds) => {
+    if (!partyId) return;
+    const group = groups.find(g => g.id === groupId);
+    if (group) {
+      const newMemberIds = [...new Set([...group.memberIds, ...guestIds])];
+      const groupRef = ref(database, `parties/${partyId}/groups/${groupId}`);
+      update(groupRef, {
+        memberIds: newMemberIds
+      });
+    }
+  }
+
+  const removeGuestFromGroup = (groupId, guestId) => {
+    if (!partyId) return;
+    const group = groups.find(g => g.id === groupId);
+    if (group) {
+      const newMemberIds = group.memberIds.filter(id => id !== guestId);
+      const groupRef = ref(database, `parties/${partyId}/groups/${groupId}`);
+      update(groupRef, {
+        memberIds: newMemberIds
+      });
+    }
+  }
+
+  const deleteGuest = (guestId) => {
+    if (!partyId) return;
+    // Remove from guests list
+    remove(ref(database, `parties/${partyId}/guests/${guestId}`));
+    
+    // Remove from all groups
+    groups.forEach(group => {
+      if (group.memberIds.includes(guestId)) {
+        removeGuestFromGroup(group.id, guestId);
+      }
+    });
+  }
+
+  const deleteGroup = (groupId) => {
+    if (!partyId) return;
+    remove(ref(database, `parties/${partyId}/groups/${groupId}`));
+  }
+
+  const updateGuestName = (guestId, newName) => {
+    if (!partyId) return;
+    update(ref(database, `parties/${partyId}/guests/${guestId}`), { name: newName });
+  }
+
+  const updateGroupName = (groupId, newName) => {
+    if (!partyId) return;
+    update(ref(database, `parties/${partyId}/groups/${groupId}`), { name: newName });
   }
 
   const toggleGuestArrival = (guestId) => {
@@ -169,14 +221,24 @@ function App() {
 
         <main className="flex-grow-1">
           {view === 'guests' && (
-            <GuestList guests={guests} addGuest={addGuest} addGuests={addGuests} />
+            <GuestList 
+              guests={guests} 
+              addGuest={addGuest} 
+              addGuests={addGuests}
+              deleteGuest={deleteGuest}
+              updateGuestName={updateGuestName}
+            />
           )}
           {view === 'groups' && (
             <GroupManager 
               groups={groups} 
               guests={guests} 
               addGroup={addGroup} 
-              addGuestToGroup={addGuestToGroup} 
+              addGuestToGroup={addGuestToGroup}
+              deleteGroup={deleteGroup}
+              updateGroupName={updateGroupName}
+              addGuestsToGroup={addGuestsToGroup}
+              removeGuestFromGroup={removeGuestFromGroup}
             />
           )}
           {view === 'dashboard' && (

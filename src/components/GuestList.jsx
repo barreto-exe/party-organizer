@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 
-function GuestList({ guests, addGuest, addGuests }) {
+function GuestList({ guests, addGuest, addGuests, deleteGuest, updateGuestName }) {
   const [name, setName] = useState('');
   const [batchNames, setBatchNames] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -19,6 +21,24 @@ function GuestList({ guests, addGuest, addGuests }) {
       addGuests(names);
       setBatchNames('');
     }
+  };
+
+  const startEditing = (guest) => {
+    setEditingId(guest.id);
+    setEditName(guest.name);
+  };
+
+  const saveEdit = () => {
+    if (editName.trim()) {
+      updateGuestName(editingId, editName);
+    }
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName('');
   };
 
   return (
@@ -67,7 +87,32 @@ function GuestList({ guests, addGuest, addGuests }) {
         <h3 className="mt-4">Invitados Registrados ({guests.length})</h3>
         <ul className="list-group mt-3">
           {guests.map((guest) => (
-            <li key={guest.id} className="list-group-item">{guest.name}</li>
+            <li key={guest.id} className="list-group-item d-flex justify-content-between align-items-center">
+              {editingId === guest.id ? (
+                <div className="d-flex gap-2 w-100">
+                  <input 
+                    type="text" 
+                    className="form-control form-control-sm" 
+                    value={editName} 
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                  <button className="btn btn-sm btn-success" onClick={saveEdit}><i className="bi bi-check"></i></button>
+                  <button className="btn btn-sm btn-secondary" onClick={cancelEdit}><i className="bi bi-x"></i></button>
+                </div>
+              ) : (
+                <>
+                  <span>{guest.name}</span>
+                  <div className="btn-group">
+                    <button className="btn btn-sm btn-outline-secondary" onClick={() => startEditing(guest)}>
+                      <i className="bi bi-pencil"></i>
+                    </button>
+                    <button className="btn btn-sm btn-outline-danger" onClick={() => { if(window.confirm('¿Eliminar invitado?')) deleteGuest(guest.id) }}>
+                      <i className="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </>
+              )}
+            </li>
           ))}
         </ul>
       </div>
